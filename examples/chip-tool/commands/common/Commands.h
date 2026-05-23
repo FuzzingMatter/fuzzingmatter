@@ -44,6 +44,7 @@ public:
     }
     int Run(int argc, char ** argv);
     int RunInteractive(const char * command, const chip::Optional<char *> & storageDirectory, bool advertiseOperational);
+    CHIP_ERROR RunFuzzing(const char * command);
 
     void UpdateCommandSet(const char * commandSetName, commands_list commandsList)
     {
@@ -69,7 +70,7 @@ private:
 
     CHIP_ERROR RunCommand(int argc, char ** argv, bool interactive = false,
                           const chip::Optional<char *> & interactiveStorageDirectory = chip::NullOptional,
-                          bool interactiveAdvertiseOperational                       = false);
+                          bool interactiveAdvertiseOperational = false, bool fuzzing = false);
 
     CommandSetMap::iterator GetCommandSet(std::string commandSetName);
     Command * GetCommand(CommandsVector & commands, std::string commandName);

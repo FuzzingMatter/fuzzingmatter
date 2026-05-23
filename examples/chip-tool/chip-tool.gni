@@ -22,4 +22,5 @@ declare_args() {
   config_enable_yaml_tests = true
   config_use_local_storage = true
   config_enable_https_requests = true
+  config_enable_chip_tool_fuzzing = true
 }

@@ -1,0 +1,431 @@
+#include "Visitors.h"
+#include "DeviceStateTracker.h"
+#include "Fuzzer.h"
+#include "tlv/DecodedTLVElement.h"
+#include <app-common/zap-generated/ids/Attributes.h>
+#include <app-common/zap-generated/ids/Clusters.h>
+#include <map>
+
+template <typename T>
+T Visitors::TLV::ConvertToIdType(std::shared_ptr<DecodedTLVElement> element)
+{
+    uint32_t primitive = TryConvertPrimitiveType<uint32_t>(element);
+    if (primitive == std::numeric_limits<uint32_t>::max())
+    {
+        if constexpr (std::is_same_v<T, EndpointId>)
+        {
+            return kInvalidEndpointId;
+        }
+        else
+        {
+            return kInvalidClusterId;
+        }
+    }
+    return static_cast<T>(primitive);
+}
+template chip::EndpointId Visitors::TLV::ConvertToIdType<chip::EndpointId>(std::shared_ptr<DecodedTLVElement> element);
+template chip::ClusterId Visitors::TLV::ConvertToIdType<chip::ClusterId>(std::shared_ptr<DecodedTLVElement> element);
+
+template <typename T>
+T Visitors::TLV::TryConvertPrimitiveType(std::shared_ptr<DecodedTLVElement> element)
+{
+    VerifyOrDieWithSave(!std::holds_alternative<ContainerType>(element->content));
+    return std::visit(
+        [](auto && arg) -> T {
+            using arg_t = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_convertible_v<arg_t, T>)
+            {
+                return static_cast<T>(arg);
+            }
+            else
+            {
+                // TODO: Consider another solution without exceptions
+                return std::numeric_limits<T>::max();
+            }
+        },
+        element->content);
+}
+template uint32_t Visitors::TLV::TryConvertPrimitiveType<uint32_t>(std::shared_ptr<DecodedTLVElement> element);
+
+void Visitors::TLV::PrintDecodedElement(DecodedTLVElementPrettyPrinter * printer, std::shared_ptr<DecodedTLVElement> element,
+                                        size_t indent)
+{
+    std::visit(
+        [&](auto && arg) {
+            using arg_t = std::decay_t<decltype(arg)>;
+            printer->PrintDecodedElementMetadata(element, indent);
+
+            if constexpr (std::is_same_v<arg_t, ContainerType>)
+            {
+                printer->PrintDecodedContainerElement(arg, indent);
+            }
+            else
+            {
+                printer->PrintDecodedPrimitiveElement<arg_t>(arg, indent);
+            }
+        },
+        element->content);
+}
+
+void Visitors::TLV::FinalizePrintDecodedElementMetadata(DecodedTLVElementPrettyPrinter * printer,
+                                                        std::shared_ptr<DecodedTLVElement> element, size_t indent)
+{
+    std::visit(
+        [&](auto && arg) {
+            using arg_t = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<arg_t, ContainerType>)
+            {
+                std::cout << "), size: " << std::dec << arg.size() << "] = {" << std::endl;
+            }
+            else
+            {
+                std::cout << ")] = ";
+            }
+        },
+        element->content);
+}
+
+template <typename T>
+void Visitors::TLV::ProcessDescriptorClusterResponse(std::shared_ptr<DecodedTLVElement> decoded,
+                                                     const chip::app::ConcreteAttributePath & path, NodeId node)
+{
+    // decoded is a structure which first element is an array (container inside root container)
+    std::visit(
+        [&](auto && arg) {
+            using arg_t = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<arg_t, ContainerType>)
+            {
+                VerifyOrReturn(std::holds_alternative<ContainerType>(arg[0]->content));
+                auto container = std::get<ContainerType>(arg[0]->content);
+                for (const auto & element : container)
+                {
+                    auto * deviceState = fuzz::Fuzzer::GetInstance()->GetDeviceStateTracker();
+                    if constexpr (std::is_same_v<T, EndpointId>)
+                    {
+                        deviceState->Add(node, ConvertToIdType<EndpointId>(element));
+                    }
+                    else if constexpr (std::is_same_v<T, uint32_t>)
+                    {
+                        /**
+                         * This case applies to both DeviceTypeId and ClusterId: both types are uint32_t.
+                         * "element" may be an array of DeviceTypeStruct typed objects:
+                         * [
+                         *   {
+                         *     deviceType: int,
+                         *     revision: int
+                         *   }
+                         * ]
+                         * We only really care about the first array element at the moment
+                         */
+
+                        // Processing testing clusters is not useful and may lead to errors.
+
+                        if (path.mAttributeId == chip::app::Clusters::Descriptor::Attributes::DeviceTypeList::Id)
+                        {
+                            VerifyOrDieWithSave(std::holds_alternative<ContainerType>(element->content));
+                            auto deviceTypeStruct   = std::get<ContainerType>(element->content);
+                            DeviceTypeId deviceType = ConvertToIdType<DeviceTypeId>(deviceTypeStruct[0]);
+                            uint16_t revision       = static_cast<uint16_t>(std::get<uint8_t>(deviceTypeStruct[1]->content));
+                            deviceState->Add(node, path.mEndpointId, DeviceTypeStruct{ deviceType, revision });
+                        }
+                        else
+                        {
+                            ClusterId cluster = ConvertToIdType<ClusterId>(element);
+                            // TODO: Get cluster revision dynamically
+                            if (fuzz::IsManufacturerSpecificTestingCluster(cluster) ||
+                                cluster == chip::app::Clusters::Descriptor::Id)
+                                continue;
+                            deviceState->Add(node, path.mEndpointId, cluster);
+                        }
+                    }
+                }
+            }
+        },
+        decoded->content);
+}
+
+template void Visitors::TLV::ProcessDescriptorClusterResponse<chip::EndpointId>(std::shared_ptr<DecodedTLVElement> decoded,
+                                                                                const chip::app::ConcreteAttributePath & path,
+                                                                                NodeId node);
+template void Visitors::TLV::ProcessDescriptorClusterResponse<chip::ClusterId>(std::shared_ptr<DecodedTLVElement> decoded,
+                                                                               const chip::app::ConcreteAttributePath & path,
+                                                                               NodeId node);
+
+void Visitors::TLV::ProcessBasicInformationClusterResponse(std::shared_ptr<DecodedTLVElement> decoded,
+                                                           const chip::app::ConcreteAttributePath & path, NodeId node)
+{
+    VerifyOrReturn(std::holds_alternative<ContainerType>(decoded->content));
+    auto element = std::get<ContainerType>(decoded->content);
+    std::visit(
+        [&](auto && arg) {
+            using arg_t = std::decay_t<decltype(arg)>;
+            // The only containers the basic information cluster returns are CapabilityMinima and ProductAppearance, which we don't
+            // care about.
+            BasicInformation info;
+            auto * deviceState = fuzz::Fuzzer::GetInstance()->GetDeviceStateTracker();
+
+            if constexpr (std::is_same_v<arg_t, ContainerType>)
+                return;
+            else if constexpr (std::is_same_v<arg_t, std::string>)
+            {
+                switch (path.mAttributeId)
+                {
+                case chip::app::Clusters::BasicInformation::Attributes::VendorName::Id:
+                    info.vendorName = arg;
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::ManufacturingDate::Id:
+                    info.manufacturingDate = arg;
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::SerialNumber::Id:
+                    info.serialNumber = arg;
+                    break;
+                }
+            }
+            else if constexpr (std::is_convertible_v<arg_t, uint64_t>)
+            {
+                switch (path.mAttributeId)
+                {
+                case chip::app::Clusters::BasicInformation::Attributes::DataModelRevision::Id:
+                    info.dmRevision = static_cast<uint16_t>(arg);
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::VendorID::Id:
+                    info.vendorId = static_cast<uint16_t>(arg);
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::HardwareVersion::Id:
+                    info.hwVersion = static_cast<uint16_t>(arg);
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::ProductID::Id:
+                    info.productId = static_cast<uint16_t>(arg);
+                    break;
+                case chip::app::Clusters::BasicInformation::Attributes::SoftwareVersion::Id:
+                    info.swVersion = static_cast<uint32_t>(arg);
+                    break;
+                }
+            }
+            else
+                return;
+            deviceState->Add(node, info);
+        },
+        element[0]->content);
+}
+
+CHIP_ERROR Visitors::TLV::PushToContainer(std::shared_ptr<DecodedTLVElement> element, std::shared_ptr<DecodedTLVElement> dst)
+{
+    return std::visit(
+        [&](auto & container) -> CHIP_ERROR {
+            using T = std::decay_t<decltype(container)>;
+            if constexpr (std::is_same_v<T, ContainerType>)
+            {
+                container.push_back(std::move(element));
+                return CHIP_NO_ERROR;
+            }
+            else
+                return CHIP_ERROR_WRONG_TLV_TYPE;
+        },
+        dst->content);
+}
+
+const types::AnyType & Visitors::AttributeWrapperRead(AttributeWrapper * attribute)
+{
+    return std::visit(
+        [&](auto && v) -> const types::AnyType & {
+            using T = std::decay_t<decltype(v)>; // T is the type of the variant
+            if constexpr (std::is_same_v<T, chip::Optional<types::AnyType>>)
+            {
+                VerifyOrReturnValue(v.HasValue(), kInvalidValue);
+                return v.Value();
+            }
+            else if constexpr (std::is_same_v<T, types::AnyType>)
+                return v;
+            else
+                return kInvalidValue;
+        },
+        attribute->value);
+}
+
+CHIP_ERROR Visitors::AttributeWrapperWriteOrFail(AttributeWrapper * attribute, size_t & typeIndexAfterWrite,
+                                                 size_t & underlyingTypeIndexAfterWrite, types::AnyType && aValue)
+{
+
+    ReturnErrorOnFailure(std::visit(
+        [&](auto & v) {
+            // T is the type of the variant of the value holder (std::monostate, AnyType or chip::Optional<AnyType>)
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, types::AnyType>)
+            {
+                v = std::move(aValue);
+            }
+            else if constexpr (std::is_same_v<T, chip::Optional<types::AnyType>>)
+            {
+                v.SetValue(std::move(aValue));
+            }
+            else
+            {
+                return CHIP_ERROR_INTERNAL;
+            }
+            return CHIP_NO_ERROR;
+        },
+        attribute->value));
+    typeIndexAfterWrite           = attribute->value.index();
+    underlyingTypeIndexAfterWrite = attribute->Read().index();
+    return CHIP_NO_ERROR;
+}
+
+std::string Visitors::AttributeValueAsString(const types::AnyType & attr)
+{
+    VerifyOrDieWithSave(!std::holds_alternative<ContainerType>(attr));
+    return std::visit(
+        [&](auto & v) -> std::string {
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, bool>)
+            {
+                return v ? "true" : "false";
+            }
+            else if constexpr (std::is_same_v<T, char *>)
+            {
+                return std::string(v);
+            }
+            else if constexpr (std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> || std::is_same_v<T, uint32_t> ||
+                               std::is_same_v<T, uint64_t> || std::is_same_v<T, int8_t> || std::is_same_v<T, int16_t> ||
+                               std::is_same_v<T, int32_t> || std::is_same_v<T, int64_t> || std::is_same_v<T, float> ||
+                               std::is_same_v<T, double>)
+            {
+                return std::to_string(v);
+            }
+            else if constexpr (std::is_same_v<T, std::string>)
+            {
+                return v;
+            }
+            else if constexpr (std::is_same_v<T, NullOptionalType>)
+            {
+                return "null";
+            }
+            else
+                return "unknown";
+        },
+        attr);
+}
+
+std::string Visitors::AttributeTypeAsString(const types::AnyType & attr)
+{
+    return std::visit(
+        [&](auto & v) -> std::string {
+            using T = std::decay_t<decltype(v)>;
+            if constexpr (std::is_same_v<T, bool>)
+            {
+                return "boolean";
+            }
+            else if constexpr (std::is_same_v<T, char *>)
+            {
+                return "bytes";
+            }
+            else if constexpr (std::is_same_v<T, uint8_t>)
+            {
+                return "uint8";
+            }
+            else if constexpr (std::is_same_v<T, uint16_t>)
+            {
+                return "uint16";
+            }
+            else if constexpr (std::is_same_v<T, uint32_t>)
+            {
+                return "uint32";
+            }
+            else if constexpr (std::is_same_v<T, uint64_t>)
+            {
+                return "uint64";
+            }
+            else if constexpr (std::is_same_v<T, int8_t>)
+            {
+                return "int8";
+            }
+            else if constexpr (std::is_same_v<T, int16_t>)
+            {
+                return "int16";
+            }
+            else if constexpr (std::is_same_v<T, int32_t>)
+            {
+                return "int32";
+            }
+            else if constexpr (std::is_same_v<T, int64_t>)
+            {
+                return "int64";
+            }
+            else if constexpr (std::is_same_v<T, float>)
+            {
+                return "float";
+            }
+            else if constexpr (std::is_same_v<T, double>)
+            {
+                return "double";
+            }
+            else if constexpr (std::is_same_v<T, std::string>)
+            {
+                return "string";
+            }
+            else if constexpr (std::is_same_v<T, ContainerType>)
+            {
+                return "container";
+            }
+            else if constexpr (std::is_same_v<T, NullOptionalType>)
+            {
+                // TODO: Find a way to retrieve null values underlying type
+                return "nullable";
+            }
+            else
+                return "unknown";
+        },
+        attr);
+}
+
+bool Visitors::IsEqual(const types::AnyType & lhs, const types::AnyType & rhs)
+{
+    return std::visit(
+        [&](auto & v1, auto & v2) -> bool {
+            using T1 = std::decay_t<decltype(v1)>;
+            using T2 = std::decay_t<decltype(v2)>;
+            if constexpr (std::is_same_v<T1, NullOptionalType> && std::is_same_v<T2, NullOptionalType>)
+            {
+                return true;
+            }
+            else if constexpr (std::is_same_v<T1, std::monostate> && std::is_same_v<T2, std::monostate>)
+            {
+                return true;
+            }
+            else if constexpr (std::is_same_v<T1, char *> && std::is_same_v<T2, char *>)
+            {
+                return strcmp(v1, v2) == 0;
+            }
+            else if constexpr ((std::is_same_v<T1, bool> && std::is_same_v<T2, char *>) ||
+                               (std::is_same_v<T1, char *> && std::is_same_v<T2, bool>) )
+            {
+                return false;
+            }
+            else if constexpr (std::is_same_v<T1, ContainerType> && std::is_same_v<T2, ContainerType>)
+            {
+                if (v1.size() != v2.size())
+                    return false;
+                for (size_t i = 0; i < v1.size(); i++)
+                {
+                    if (!IsEqual(v1[i]->content, v2[i]->content))
+                        return false;
+                }
+                return true;
+            }
+            else if constexpr (std::is_same_v<T1, T2>)
+            {
+                return v1 == v2;
+            }
+            else if constexpr (!std::is_same_v<T1, T2> && std::is_convertible_v<T1, T2>)
+            {
+                return static_cast<T2>(v1) == v2;
+            }
+            else if constexpr (!std::is_same_v<T1, T2> && std::is_convertible_v<T2, T1>)
+            {
+                return v1 == static_cast<T1>(v2);
+            }
+            else
+                return false;
+        },
+        lhs, rhs);
+}

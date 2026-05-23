@@ -117,6 +117,10 @@ public:
     void OnResponse(const chip::app::WriteClient * client, const chip::app::ConcreteDataAttributePath & path,
                     chip::app::StatusIB status) override
     {
+        if (IsFuzzing())
+        {
+            fuzz::Fuzzer::GetInstance()->GetCallbackInterceptor()->ExtractReportData(nullptr, path);
+        }
         CHIP_ERROR error = status.ToChipError();
         if (CHIP_NO_ERROR != error)
         {
@@ -129,6 +133,11 @@ public:
 
     void OnError(const chip::app::WriteClient * client, CHIP_ERROR error) override
     {
+        if (IsFuzzing())
+        {
+            fuzz::Fuzzer::GetInstance()->GetCallbackInterceptor()->AnalyzeCommandError(
+                chip::Protocols::InteractionModel::MsgType::WriteResponse, error);
+        }
         LogErrorOnFailure(RemoteDataModelLogger::LogErrorAsJSON(error));
 
         ChipLogProgress(chipTool, "Error: %s", chip::ErrorStr(error));
@@ -144,6 +153,11 @@ public:
     CHIP_ERROR SendCommand(chip::DeviceProxy * device, std::vector<chip::EndpointId> endpointIds,
                            std::vector<chip::ClusterId> clusterIds, std::vector<chip::AttributeId> attributeIds, const T & values)
     {
+        if (IsFuzzing())
+        {
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnNonInvokeRequest(device->GetDeviceId()));
+        }
         return InteractionModelWriter::WriteAttribute(device, endpointIds, clusterIds, attributeIds, values);
     }
 

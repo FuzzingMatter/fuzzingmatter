@@ -23,6 +23,7 @@
 #include "commands/dcl/Commands.h"
 #include "commands/delay/Commands.h"
 #include "commands/discover/Commands.h"
+#include "commands/fuzzing/Commands.h"
 #include "commands/group/Commands.h"
 #include "commands/icd/ICDCommand.h"
 #include "commands/interactive/Commands.h"
@@ -43,6 +44,7 @@ int main(int argc, char * argv[])
     registerCommandsDCL(commands);
     registerCommandsDelay(commands, &credIssuerCommands);
     registerCommandsDiscover(commands, &credIssuerCommands);
+    registerCommandsFuzzing(commands, &credIssuerCommands);
     registerCommandsICD(commands, &credIssuerCommands);
     registerCommandsInteractive(commands, &credIssuerCommands);
     registerCommandsPayload(commands);

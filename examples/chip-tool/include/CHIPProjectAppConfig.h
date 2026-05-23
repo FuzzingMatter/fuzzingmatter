@@ -57,4 +57,7 @@
 // Allow us, for test purposes, to encode invalid enum values.
 #define CHIP_CONFIG_IM_ENABLE_ENCODING_SENTINEL_ENUM_VALUES 1
 
+// Saves a flow debug file containing a description of all context flows of the fuzzing run.
+#define CHIP_FUZZING_ENABLE_CONTEXT_FLOW_DEBUG 1
+
 #endif /* CHIPPROJECTCONFIG_H */

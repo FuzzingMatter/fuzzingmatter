@@ -347,3 +347,6 @@
 [submodule "third_party/miniaudio/repo"]
 	path = third_party/miniaudio/repo
 	url = https://github.com/mackron/miniaudio
+[submodule "third_party/yaml-cpp/repo"]
+	path = third_party/yaml-cpp/repo
+	url = https://github.com/jbeder/yaml-cpp.git

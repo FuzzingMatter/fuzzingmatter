@@ -51,6 +51,10 @@ config("config") {
     defines += [ "CONFIG_ENABLE_HTTPS_REQUESTS" ]
   }
 
+  if (config_enable_chip_tool_fuzzing) {
+    defines += [ "CONFIG_ENABLE_CHIP_TOOL_FUZZING" ]
+  }
+
   cflags = [ "-Wconversion" ]
 }
 
@@ -113,6 +117,43 @@ static_library("chip-tool-utils") {
     ]
   }
 
+  if (config_enable_chip_tool_fuzzing) {
+    sources += [
+      "${chip_root}/src/app/tests/integration/common.cpp",
+      "${chip_root}/src/app/tests/integration/common.h",
+      "commands/fuzzing/AttributeFactory.cpp",
+      "commands/fuzzing/AttributeFactory.h",
+      "commands/fuzzing/CallbackInterceptor.cpp",
+      "commands/fuzzing/CallbackInterceptor.h",
+      "commands/fuzzing/Commands.h",
+      "commands/fuzzing/ContextManager.cpp",
+      "commands/fuzzing/ContextManager.h",
+      "commands/fuzzing/DeviceStateTracker.cpp",
+      "commands/fuzzing/DeviceStateTracker.h",
+      "commands/fuzzing/ForwardDeclarations.h",
+      "commands/fuzzing/Fuzzer.cpp",
+      "commands/fuzzing/Fuzzer.h",
+      "commands/fuzzing/FuzzingCommands.cpp",
+      "commands/fuzzing/FuzzingCommands.h",
+      "commands/fuzzing/OutputLogger.cpp",
+      "commands/fuzzing/OutputLogger.h",
+      "commands/fuzzing/StatsMonitor.cpp",
+      "commands/fuzzing/StatsMonitor.h",
+      "commands/fuzzing/Tuner.cpp",
+      "commands/fuzzing/Tuner.h",
+      "commands/fuzzing/Utils.cpp",
+      "commands/fuzzing/Utils.h",
+      "commands/fuzzing/Visitors.cpp",
+      "commands/fuzzing/Visitors.h",
+      "commands/fuzzing/generation/InputGenerator.cpp",
+      "commands/fuzzing/generation/InputGenerator.h",
+      "commands/fuzzing/tlv/DecodedTLVElement.cpp",
+      "commands/fuzzing/tlv/DecodedTLVElement.h",
+      "commands/fuzzing/tlv/TLVDataPayloadHelper.cpp",
+      "commands/fuzzing/tlv/TLVDataPayloadHelper.h",
+    ]
+  }
+
   if (chip_device_platform == "darwin") {
     sources += [ "commands/common/DeviceScanner.cpp" ]
   }
@@ -139,6 +180,10 @@ static_library("chip-tool-utils") {
   ]
 
   public_configs = [ ":config" ]
+
+  if (config_enable_chip_tool_fuzzing) {
+    public_deps += [ "${chip_root}/third_party/yaml-cpp" ]
+  }
 
   if (chip_enable_transport_trace) {
     public_deps +=

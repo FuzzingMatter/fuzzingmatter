@@ -235,6 +235,12 @@ public:
     }
 
     template <typename T>
+    size_t AddArgument(const char * name, T min, T max, chip::Optional<T> * value, const char * desc = "")
+    {
+        return AddArgument(name, min, max, reinterpret_cast<T *>(value), desc, Argument::kOptional);
+    }
+
+    template <typename T>
     size_t AddArgument(const char * name, chip::app::DataModel::Nullable<T> * value, const char * desc = "", uint8_t flags = 0)
     {
         return AddArgument(name, reinterpret_cast<T *>(value), desc, flags | Argument::kNullable);
@@ -267,12 +273,21 @@ public:
     virtual CHIP_ERROR Run() = 0;
 
     bool IsInteractive() { return mIsInteractive; }
+    bool IsFuzzing() { return mIsFuzzing; }
 
     CHIP_ERROR RunAsInteractive(const chip::Optional<char *> & interactiveStorageDirectory, bool advertiseOperational)
     {
         mStorageDirectory     = interactiveStorageDirectory;
         mIsInteractive        = true;
         mAdvertiseOperational = advertiseOperational;
+        return Run();
+    }
+
+    CHIP_ERROR RunAsFuzzing(const chip::Optional<char *> & interactiveStorageDirectory)
+    {
+        mStorageDirectory     = interactiveStorageDirectory;
+        mIsFuzzing            = true;
+        mAdvertiseOperational = false;
         return Run();
     }
 
@@ -306,6 +321,7 @@ private:
     const char * mName     = nullptr;
     const char * mHelpText = nullptr;
     bool mIsInteractive    = false;
+    bool mIsFuzzing        = false;
 
     chip::Optional<ReadOnlyGlobalCommandArgument> mReadOnlyGlobalCommandArgument;
     std::vector<Argument> mArgs;

@@ -18,11 +18,14 @@
 
 #pragma once
 
+#if CONFIG_ENABLE_CHIP_TOOL_FUZZING
+#include "../fuzzing/ForwardDeclarations.h"
+#include "../fuzzing/Fuzzer.h"
+#endif // CONFIG_ENABLE_CHIP_TOOL_FUZZING
 #include "DataModelLogger.h"
 #include "ModelCommand.h"
 #include <app/tests/suites/commands/interaction_model/InteractionModel.h>
 #include <lib/core/ClusterEnums.h>
-
 class ClusterCommand : public InteractionModelCommands, public ModelCommand, public chip::app::CommandSender::Callback
 {
 public:
@@ -45,6 +48,14 @@ public:
 
     CHIP_ERROR SendCommand(chip::DeviceProxy * device, std::vector<chip::EndpointId> endpointIds) override
     {
+        if (IsFuzzing())
+        {
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnInvokeRequest(
+                device->GetDeviceId(), chip::app::ConcreteCommandPath{ endpointIds.at(0), mClusterId, mCommandId }));
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
+        }
         return InteractionModelCommands::SendCommand(device, endpointIds.at(0), mClusterId, mCommandId, mPayload);
     }
 
@@ -52,6 +63,15 @@ public:
     CHIP_ERROR SendCommand(chip::DeviceProxy * device, chip::EndpointId endpointId, chip::ClusterId clusterId,
                            chip::CommandId commandId, const T & value)
     {
+        if (IsFuzzing())
+        {
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnInvokeRequest(
+                device->GetDeviceId(), chip::app::ConcreteCommandPath{ endpointId, clusterId, commandId }));
+
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
+        }
         return InteractionModelCommands::SendCommand(device, endpointId, clusterId, commandId, value);
     }
 
@@ -59,6 +79,15 @@ public:
                            chip::CommandId commandId,
                            const chip::app::Clusters::IcdManagement::Commands::UnregisterClient::Type & value)
     {
+        if (IsFuzzing())
+        {
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnInvokeRequest(
+                device->GetDeviceId(), chip::app::ConcreteCommandPath{ endpointId, clusterId, commandId }));
+
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
+        }
         ReturnErrorOnFailure(InteractionModelCommands::SendCommand(device, endpointId, clusterId, commandId, value));
         mPeerNodeId = chip::ScopedNodeId(device->GetDeviceId(), device->GetSecureSession().Value()->GetFabricIndex());
         return CHIP_NO_ERROR;
@@ -68,6 +97,15 @@ public:
                            chip::CommandId commandId,
                            const chip::app::Clusters::IcdManagement::Commands::RegisterClient::Type & value)
     {
+        if (IsFuzzing())
+        {
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnInvokeRequest(
+                device->GetDeviceId(), chip::app::ConcreteCommandPath{ endpointId, clusterId, commandId }));
+
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
+        }
         ReturnErrorOnFailure(InteractionModelCommands::SendCommand(device, endpointId, clusterId, commandId, value));
         mPeerNodeId       = chip::ScopedNodeId(device->GetDeviceId(), device->GetSecureSession().Value()->GetFabricIndex());
         mCheckInNodeId    = chip::ScopedNodeId(value.checkInNodeID, device->GetSecureSession().Value()->GetFabricIndex());
@@ -81,6 +119,15 @@ public:
                            chip::CommandId commandId,
                            const chip::app::Clusters::DiagnosticLogs::Commands::RetrieveLogsRequest::Type & value)
     {
+        if (IsFuzzing())
+        {
+#if CONFIG_USE_SEPARATE_EVENTLOOP
+            auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+            ReturnErrorOnFailure(contextManager->OnInvokeRequest(
+                device->GetDeviceId(), chip::app::ConcreteCommandPath{ endpointId, clusterId, commandId }));
+
+#endif // CONFIG_USE_SEPARATE_EVENTLOOP
+        }
         ReturnErrorOnFailure(InteractionModelCommands::SendCommand(device, endpointId, clusterId, commandId, value));
 
         if (value.transferFileDesignator.HasValue() &&
@@ -110,9 +157,23 @@ public:
                             const chip::app::StatusIB & status, chip::TLV::TLVReader * data) override
     {
         CHIP_ERROR error = status.ToChipError();
+        if (IsFuzzing())
+        {
+            auto fuzzer         = fuzz::Fuzzer::GetInstance();
+            auto responseData   = fuzzer->GetCallbackInterceptor()->ExtractCommandResponse(data, path);
+            auto contextManager = fuzzer->GetContextManager();
+            LogErrorOnFailure(contextManager->OnInvokeResponse(error, responseData));
+            if (CHIP_NO_ERROR == error)
+            {
+                LogErrorOnFailure(contextManager->RequireSubscriptionReport());
+            }
+        }
         if (CHIP_NO_ERROR != error)
         {
-            LogErrorOnFailure(RemoteDataModelLogger::LogErrorAsJSON(path, status));
+            if (!IsFuzzing())
+            {
+                LogErrorOnFailure(RemoteDataModelLogger::LogErrorAsJSON(path, status));
+            }
 
             ChipLogError(chipTool, "Response Failure: %s", chip::ErrorStr(error));
             mError = error;
@@ -128,6 +189,7 @@ public:
                 LogErrorOnFailure(RemoteDataModelLogger::LogCommandAsJSON(path, &logTlvReader));
                 error = DataModelLogger::LogCommand(path, &logTlvReader);
             }
+
             if (CHIP_NO_ERROR != error)
             {
                 ChipLogError(chipTool, "Response Failure: Can not decode Data");
@@ -172,6 +234,14 @@ public:
 
         ChipLogProgress(chipTool, "Error: %s", chip::ErrorStr(error));
         mError = error;
+
+        if (IsFuzzing())
+        {
+            auto fuzzer = fuzz::Fuzzer::GetInstance();
+            fuzzer->GetCallbackInterceptor()->AnalyzeCommandError(chip::Protocols::InteractionModel::MsgType::InvokeCommandResponse,
+                                                                  error);
+            LogErrorOnFailure(fuzzer->GetContextManager()->OnInvokeResponse(error, nullptr));
+        }
     }
 
     virtual void OnDone(chip::app::CommandSender * client) override

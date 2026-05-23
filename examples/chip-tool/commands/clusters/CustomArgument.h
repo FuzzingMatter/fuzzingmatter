@@ -170,6 +170,9 @@ private:
         char numberAsString[21];
         chip::Platform::CopyString(numberAsString, value.asCString() + kPayloadUnsignedPrefixLen);
 
+        // Command payload in fuzzing mode can be just "u:" or non-numeric text after "u:", so reject it here instead of letting std::stoull throw.
+        VerifyOrReturnError(std::string(numberAsString).find_first_of("0123456789") != std::string::npos,
+                            CHIP_ERROR_INVALID_ARGUMENT);
         auto number = std::stoull(numberAsString, nullptr, 0);
         return chip::app::DataModel::Encode(*writer, tag, static_cast<uint64_t>(number));
     }
@@ -179,6 +182,9 @@ private:
         char numberAsString[21];
         chip::Platform::CopyString(numberAsString, value.asCString() + kPayloadSignedPrefixLen);
 
+        // Command payload in fuzzing mode can be just "s:" or non-numeric text after "s:", so reject it here instead of letting std::stoll throw.
+        VerifyOrReturnError(std::string(numberAsString).find_first_of("0123456789") != std::string::npos,
+                            CHIP_ERROR_INVALID_ARGUMENT);
         auto number = std::stoll(numberAsString, nullptr, 0);
         return chip::app::DataModel::Encode(*writer, tag, static_cast<int64_t>(number));
     }
@@ -188,6 +194,9 @@ private:
         char numberAsString[21];
         chip::Platform::CopyString(numberAsString, value.asCString() + kPayloadFloatPrefixLen);
 
+        // Command payload in fuzzing mode can be just "f:" or non-numeric text after "f:", so reject it here instead of letting std::stof throw.
+        VerifyOrReturnError(std::string(numberAsString).find_first_of("0123456789") != std::string::npos,
+                            CHIP_ERROR_INVALID_ARGUMENT);
         auto number = std::stof(numberAsString);
         return chip::app::DataModel::Encode(*writer, tag, number);
     }
@@ -197,6 +206,9 @@ private:
         char numberAsString[21];
         chip::Platform::CopyString(numberAsString, value.asCString() + kPayloadDoublePrefixLen);
 
+        // Command payload in fuzzing mode can be just "d:" or non-numeric text after "d:", so reject it here instead of letting std::stod throw.
+        VerifyOrReturnError(std::string(numberAsString).find_first_of("0123456789") != std::string::npos,
+                            CHIP_ERROR_INVALID_ARGUMENT);
         auto number = std::stod(numberAsString);
         return chip::app::DataModel::Encode(*writer, tag, number);
     }

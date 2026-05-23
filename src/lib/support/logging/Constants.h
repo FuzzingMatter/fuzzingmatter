@@ -39,6 +39,7 @@ namespace Logging {
     X(EventLogging, "EVL")                                                                                                         \
     X(Support, "SPT")                                                                                                              \
     X(chipTool, "TOO")                                                                                                             \
+    X(chipToolFuzzing, "FUZ")                                                                                                      \
     X(Zcl, "ZCL")                                                                                                                  \
     X(Shell, "SH")                                                                                                                 \
     X(DeviceLayer, "DL")                                                                                                           \
@@ -191,6 +192,10 @@ enum LogModule
 
 #ifndef CHIP_CONFIG_LOG_MODULE_chipTool
 #define CHIP_CONFIG_LOG_MODULE_chipTool 1
+#endif
+
+#ifndef CHIP_CONFIG_LOG_MODULE_chipToolFuzzing
+#define CHIP_CONFIG_LOG_MODULE_chipToolFuzzing 1
 #endif
 
 #ifndef CHIP_CONFIG_LOG_MODULE_Zcl

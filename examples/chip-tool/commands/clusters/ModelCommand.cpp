@@ -140,5 +140,5 @@ bool ModelCommand::IsPeerLIT()
 
 bool ModelCommand::AllowLargePayload()
 {
-    return mAllowLargePayload.ValueOr(false);
+    return mAllowLargePayload.ValueOr(false) || IsFuzzing();
 }

@@ -29,6 +29,11 @@
 #include <lib/support/ScopedMemoryBuffer.h>
 #include <lib/support/TestGroupData.h>
 #include <platform/LockTracker.h>
+#include <thread>
+#if CONFIG_ENABLE_CHIP_TOOL_FUZZING
+#include "../fuzzing/ForwardDeclarations.h"
+#include "../fuzzing/Fuzzer.h"
+#endif // CONFIG_ENABLE_CHIP_TOOL_FUZZING
 
 #include <string>
 
@@ -109,7 +114,7 @@ CHIP_ERROR GetAttestationRevocationDelegate(const char * revocationSetPath,
 
 CHIP_ERROR CHIPCommand::MaybeSetUpStack()
 {
-    if (IsInteractive())
+    if (IsInteractive() || IsFuzzing())
     {
         return CHIP_NO_ERROR;
     }
@@ -216,7 +221,7 @@ CHIP_ERROR CHIPCommand::MaybeSetUpStack()
 
 void CHIPCommand::MaybeTearDownStack()
 {
-    if (IsInteractive())
+    if (IsInteractive() || IsFuzzing())
     {
         return;
     }
@@ -277,7 +282,7 @@ CHIP_ERROR CHIPCommand::Run()
 
     CHIP_ERROR err = StartWaiting(GetWaitDuration());
 
-    if (IsInteractive())
+    if (IsInteractive() || IsFuzzing())
     {
         bool timedOut;
         // Give it 2 hours to run our cleanup; that should never get hit in practice.
@@ -577,7 +582,7 @@ void CHIPCommand::RunCommandCleanup(intptr_t commandArg)
 void CHIPCommand::CleanupAfterRun()
 {
     assertChipStackLockedByCurrentThread();
-    bool deferCleanup = (IsInteractive() && DeferInteractiveCleanup());
+    bool deferCleanup = ((IsInteractive() || IsFuzzing()) && DeferInteractiveCleanup());
 
     Shutdown();
 
@@ -593,14 +598,40 @@ void CHIPCommand::CleanupAfterRun()
 
 CHIP_ERROR CHIPCommand::RunOnMatterQueue(MatterWorkCallback callback, chip::System::Clock::Timeout timeout, bool * timedOut)
 {
+    // IMPORTANT! When in fuzzer mode, do not access to the local IPC variables.
+    // Always refer at the current fuzzer context's IPC data.
+    if (IsFuzzing())
+    {
+        auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+        if (!contextManager->IsInitialized())
+        {
+            // Called when no context is available yet or the current context went out of scope.
+            contextManager->Initialize(&cvWaitingForResponse, &cvWaitingForResponseMutex, &mWaitingForResponse);
+        }
+        else
+        {
+            // Used only by the receiver thread
+            VerifyOrDie(CHIP_NO_ERROR == contextManager->RequireResponse());
+        }
+    }
+    else
     {
         std::lock_guard<std::mutex> lk(cvWaitingForResponseMutex);
         mWaitingForResponse = true;
     }
 
     auto err = chip::DeviceLayer::PlatformMgr().ScheduleWork(callback, reinterpret_cast<intptr_t>(this));
+    if (IsFuzzing())
+        fuzz::Fuzzer::GetInstance()->GetContextManager()->NotifyCommandScheduledTime();
+
     if (CHIP_NO_ERROR != err)
     {
+        if (IsFuzzing())
+        {
+            ChipLogError(chipToolFuzzing, "Stopping waiting for response due to error: %s", chip::ErrorStr(err));
+            VerifyOrDie(CHIP_NO_ERROR == fuzz::Fuzzer::GetInstance()->GetContextManager()->NotifyResponse());
+        }
+        else
         {
             std::lock_guard<std::mutex> lk(cvWaitingForResponseMutex);
             mWaitingForResponse = false;
@@ -608,12 +639,21 @@ CHIP_ERROR CHIPCommand::RunOnMatterQueue(MatterWorkCallback callback, chip::Syst
         return err;
     }
 
-    auto waitingUntil = std::chrono::system_clock::now() + std::chrono::duration_cast<std::chrono::seconds>(timeout);
+    auto waitingUntil = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::seconds>(timeout);
+    if (IsFuzzing())
+    {
+        *timedOut = !fuzz::Fuzzer::GetInstance()->GetContextManager()->WaitForResponse(waitingUntil);
+        ChipLogProgress(chipToolFuzzing, "Context updated after command %s.", *timedOut ? "timeout" : "response");
+        if (*timedOut)
+        {
+            ChipLogError(chipToolFuzzing, "TIMEOUT");
+        }
+    }
+    else
     {
         std::unique_lock<std::mutex> lk(cvWaitingForResponseMutex);
         *timedOut = !cvWaitingForResponse.wait_until(lk, waitingUntil, [this]() { return !this->mWaitingForResponse; });
     }
-
     return CHIP_NO_ERROR;
 }
 
@@ -628,7 +668,7 @@ CHIP_ERROR CHIPCommand::StartWaiting(chip::System::Clock::Timeout duration)
 {
 #if CONFIG_USE_SEPARATE_EVENTLOOP
     // ServiceEvents() calls StartEventLoopTask(), which is paired with the StopEventLoopTask() below.
-    if (!IsInteractive())
+    if (!IsInteractive() && !IsFuzzing())
     {
         ReturnLogErrorOnFailure(DeviceControllerFactory::GetInstance().ServiceEvents());
     }
@@ -650,7 +690,7 @@ CHIP_ERROR CHIPCommand::StartWaiting(chip::System::Clock::Timeout duration)
             mCommandExitStatus = CHIP_ERROR_TIMEOUT;
         }
     }
-    if (!IsInteractive())
+    if (!IsInteractive() && !IsFuzzing())
     {
         LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().StopEventLoopTask());
     }
@@ -666,11 +706,19 @@ CHIP_ERROR CHIPCommand::StartWaiting(chip::System::Clock::Timeout duration)
 void CHIPCommand::StopWaiting()
 {
 #if CONFIG_USE_SEPARATE_EVENTLOOP
+    if (IsFuzzing())
     {
-        std::lock_guard<std::mutex> lk(cvWaitingForResponseMutex);
-        mWaitingForResponse = false;
+        auto contextManager = fuzz::Fuzzer::GetInstance()->GetContextManager();
+        VerifyOrDie(CHIP_NO_ERROR == contextManager->NotifyResponse());
     }
-    cvWaitingForResponse.notify_all();
+    else
+    {
+        {
+            std::lock_guard<std::mutex> lk(cvWaitingForResponseMutex);
+            mWaitingForResponse = false;
+        }
+        cvWaitingForResponse.notify_all();
+    }
 #else  // CONFIG_USE_SEPARATE_EVENTLOOP
     LogErrorOnFailure(chip::DeviceLayer::PlatformMgr().StopEventLoopTask());
 #endif // CONFIG_USE_SEPARATE_EVENTLOOP
