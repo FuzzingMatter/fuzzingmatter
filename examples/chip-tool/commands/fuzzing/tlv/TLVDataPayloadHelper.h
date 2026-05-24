@@ -26,7 +26,7 @@ inline uint8_t ExtractSizeFromControlByte(TLVType type, uint16_t controlByte)
     }
     default: {
         // Bitwise AND with 0x3 constant only takes the 2 least significant bits of the control byte, reserved to size control
-        return 1 << (controlByte & 0x3);
+        return static_cast<uint8_t>(1u << (controlByte & 0x3u));
     }
     }
 };
@@ -68,7 +68,6 @@ public:
 private:
     chip::TLV::TLVReader mPayloadReader;
     chip::TLV::TLVWriter mPayloadWriter;
-    chip::Protocols::InteractionModel::MsgType mMessageType;
     CHIP_ERROR DecodePrimitive(TLVType dstType, uint8_t dstBytes, std::shared_ptr<DecodedTLVElement> output);
     void PrettyPrint();
 };

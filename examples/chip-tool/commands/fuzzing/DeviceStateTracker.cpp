@@ -48,7 +48,7 @@ template <typename Map, typename K, typename... Path>
 auto & ReadValueOrDefault(Map * map, const K id, const Path... ids)
 {
     VerifyOrDieWithSave(map != nullptr);
-    return ReadValueOrDefault((*map)[id], ids...);
+    return ReadValueOrDefault(&(*map)[id], ids...);
 }
 
 // This sets a default value to a key in a map if it doesn't already exist, then returns it
@@ -96,12 +96,13 @@ fuzz::AttributeState & fuzz::DeviceStateTracker::GetAttributeState(NodeId node, 
     return ReadValueOrDefault(&mDeviceState(node, endpoint, cluster)->attributes, attribute);
 }
 
-void fuzz::DeviceStateTracker::WriteAttribute(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute,
-                                              types::AnyType && aValue)
+CHIP_ERROR fuzz::DeviceStateTracker::WriteAttribute(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute,
+                                                    types::AnyType && aValue)
 {
     VerifyOrDieWithSave(mDeviceState(node, endpoint, cluster) != nullptr);
     AttributeState & attributeState = ReadValueOrDefault(&mDeviceState(node, endpoint, cluster)->attributes, attribute);
-    attributeState.Write(std::move(aValue));
+    ReturnErrorOnFailure(attributeState.Write(std::move(aValue)));
+    return CHIP_NO_ERROR;
 }
 
 types::CommandSpecification * fuzz::DeviceStateTracker::ReadCommandSpec(NodeId node, EndpointId endpoint, ClusterId cluster,
@@ -135,7 +136,7 @@ void fuzz::DeviceStateTracker::SetAttributeAccess(NodeId node, EndpointId endpoi
     VerifyOrDieWithSave(mDeviceState(node, endpoint, cluster) != nullptr);
     auto * attributeSpec = ReadValueOrNull(mDeviceState(node, endpoint, cluster)->attributes, attribute);
     VerifyOrReturn(attributeSpec != nullptr);
-    attributeSpec->SetAccess(access);
+    LogErrorOnFailure(attributeSpec->SetAccess(access));
 }
 
 bool fuzz::DeviceStateTracker::CommandHasAccess(NodeId node, EndpointId endpoint, ClusterId cluster, CommandId command,
@@ -327,8 +328,9 @@ CHIP_ERROR fuzz::DeviceStateTracker::Load(YAML::Node & root, bool sync, FuzzingC
                     }
                     else
                     {
-                        WriteAttribute(node.first.as<NodeId>(), endpoint.first.as<EndpointId>(), cluster.first.as<ClusterId>(),
-                                       attrData.first.as<AttributeId>(), std::move(value));
+                        ReturnErrorOnFailure(WriteAttribute(node.first.as<NodeId>(), endpoint.first.as<EndpointId>(),
+                                                           cluster.first.as<ClusterId>(), attrData.first.as<AttributeId>(),
+                                                           std::move(value)));
                     }
                 }
             }

@@ -81,7 +81,7 @@ struct MapKeyHasher
     std::size_t operator()(const FuzzerObservation & k) const
     {
         uint64_t reportedDataSum =
-            std::accumulate(k.mReportedData.begin(), k.mReportedData.end(), 0, [&](uint64_t acc, auto & map) {
+            std::accumulate(k.mReportedData.begin(), k.mReportedData.end(), uint64_t{ 0 }, [&](uint64_t acc, auto & map) {
                 std::vector<uint64_t> attributePathMapSums(map.size());
                 std::transform(map.begin(), map.end(), attributePathMapSums.begin(), [&](auto & el) {
                     return static_cast<uint64_t>(el.first.mEndpointId) + static_cast<uint64_t>(el.first.mClusterId) +

@@ -374,19 +374,23 @@ CHIP_ERROR FuzzingReplicateCommand::RunCommand()
     std::sregex_token_iterator end;
     std::vector<std::string> tokens(begin, end);
 
-    target = std::stoul(tokens[6], nullptr, 16);
+    target = static_cast<chip::NodeId>(std::stoull(tokens[6], nullptr, 16));
 
     ChipLogProgress(chipToolFuzzing, "Verifying experiment:");
     ChipLogProgress(chipToolFuzzing,
-                    "Vendor name: %s, Vendor ID: 0x%04" PRIX64 ", Product ID: 0x%04" PRIX64 ", Hardware version: 0x%04" PRIX64
-                    ", Software version: 0x%08" PRIX64 "",
-                    tokens[0].c_str(), std::stoul(tokens[1], nullptr, 16), std::stoul(tokens[2], nullptr, 16),
-                    std::stoul(tokens[3], nullptr, 16), std::stoul(tokens[4], nullptr, 16));
+                    "Vendor name: %s, Vendor ID: 0x%04X, Product ID: 0x%04X, Hardware version: 0x%04X, "
+                    "Software version: 0x%08X",
+                    tokens[0].c_str(), static_cast<unsigned>(std::stoul(tokens[1], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[2], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[3], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[4], nullptr, 16)));
     ChipLogProgress(chipToolFuzzing,
-                    "Node ID: 0x%016" PRIX64 ", Data model command: (0x%04" PRIX64 ", 0x%08" PRIX64 ", 0x%08" PRIX64
-                    "), Status code: 0x%08" PRIX64,
-                    target, std::stoul(tokens[7], nullptr, 16), std::stoul(tokens[8], nullptr, 16),
-                    std::stoul(tokens[9], nullptr, 16), std::stoul(tokens[11], nullptr, 16));
+                    "Node ID: 0x" ChipLogFormatX64 ", Data model command: (0x%04X, 0x%08X, 0x%08X), "
+                    "Status code: 0x%08X",
+                    ChipLogValueX64(target), static_cast<unsigned>(std::stoul(tokens[7], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[8], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[9], nullptr, 16)),
+                    static_cast<unsigned>(std::stoul(tokens[11], nullptr, 16)));
 
     if (!root["response"])
     {

@@ -97,7 +97,7 @@ public:
 
     CHIP_ERROR LazyInitialize(TLV::TLVType aType, uint8_t bytes, AttributeQualityEnum aQuality, types::AnyType && value)
     {
-        mValue = std::move(AttributeFactory::Create(aType, std::move(value), bytes, aQuality));
+        mValue = AttributeFactory::Create(aType, std::move(value), bytes, aQuality);
         VerifyOrReturnError(mValue != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
         return CHIP_NO_ERROR;
     }
@@ -193,7 +193,7 @@ public:
     const types::AnyType & ReadAttribute(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute,
                                          bool current = true);
     AttributeState & GetAttributeState(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute);
-    void WriteAttribute(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute, types::AnyType && aValue);
+    CHIP_ERROR WriteAttribute(NodeId node, EndpointId endpoint, ClusterId cluster, AttributeId attribute, types::AnyType && aValue);
     types::CommandSpecification * ReadCommandSpec(NodeId node, EndpointId endpoint, ClusterId cluster, CommandId command);
     void WriteToCommandSpec(NodeId node, EndpointId endpoint, ClusterId cluster, CommandId command, bool generatesReport);
     void WriteToCommandSpec(NodeId node, EndpointId endpoint, ClusterId cluster, CommandId command, types::Access access);

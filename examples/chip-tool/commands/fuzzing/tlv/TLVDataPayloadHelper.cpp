@@ -11,7 +11,7 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::DecodePrimitive(TLVType dstType, uin
     {
     case TLVType::kTLVType_Boolean: {
         bool v;
-        mPayloadReader.Get(v);
+        ReturnErrorOnFailure(mPayloadReader.Get(v));
         output->content = v;
         break;
     }
@@ -24,25 +24,25 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::DecodePrimitive(TLVType dstType, uin
         {
         case 1: {
             int8_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 2: {
             int16_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 4: {
             int32_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 8: {
             int64_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
@@ -56,25 +56,25 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::DecodePrimitive(TLVType dstType, uin
         {
         case 1: {
             uint8_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 2: {
             uint16_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 4: {
             uint32_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 8: {
             uint64_t v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
@@ -88,13 +88,13 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::DecodePrimitive(TLVType dstType, uin
         {
         case 4: {
             float v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
         case 8: {
             double v;
-            mPayloadReader.Get(v);
+            ReturnErrorOnFailure(mPayloadReader.Get(v));
             output->content = v;
             break;
         }
@@ -106,7 +106,7 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::DecodePrimitive(TLVType dstType, uin
     case TLVType::kTLVType_UTF8String:
     case TLVType::kTLVType_ByteString: {
         std::vector<char> buffer(mPayloadReader.GetLength() + 1);
-        mPayloadReader.GetString(buffer.data(), buffer.size());
+        ReturnErrorOnFailure(mPayloadReader.GetString(buffer.data(), buffer.size()));
         output->content = std::string(buffer.data(), strlen(buffer.data()));
         break;
     }
@@ -140,10 +140,10 @@ CHIP_ERROR fuzz::TLV::TLVDataPayloadHelper::Decode(std::shared_ptr<DecodedTLVEle
         if (type == TLVType::kTLVType_Structure || type == TLVType::kTLVType_Array || type == TLVType::kTLVType_List)
         {
             TLVType outerContainer;
-            mPayloadReader.EnterContainer(outerContainer);
+            ReturnErrorOnFailure(mPayloadReader.EnterContainer(outerContainer));
             newElement->content = ContainerType();
             ReturnErrorOnFailure(Decode(newElement));
-            mPayloadReader.ExitContainer(outerContainer);
+            ReturnErrorOnFailure(mPayloadReader.ExitContainer(outerContainer));
         }
         else
         {
@@ -191,12 +191,12 @@ void fuzz::TLV::TLVDataPayloadHelper::PrettyPrint()
 {
     chip::TLV::TLVReader printBuffer;
     printBuffer.Init(mPayloadReader);
-    chip::TLV::Debug::Dump(printBuffer, TLVPrettyPrinter);
+    LogErrorOnFailure(chip::TLV::Debug::Dump(printBuffer, TLVPrettyPrinter));
 }
 
 void fuzz::TLV::TLVDataPayloadHelper::PrintRaw(const uint8_t * data, size_t length)
 {
     chip::TLV::TLVReader reader;
     reader.Init(data, length);
-    chip::TLV::Debug::Dump(reader, TLVPrettyPrinter);
+    LogErrorOnFailure(chip::TLV::Debug::Dump(reader, TLVPrettyPrinter));
 }

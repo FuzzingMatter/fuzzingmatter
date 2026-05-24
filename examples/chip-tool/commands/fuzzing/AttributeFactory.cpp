@@ -9,7 +9,9 @@ std::shared_ptr<fuzz::AttributeWrapper> fuzz::AttributeFactory::Create(TLV::TLVT
     {
         if (supportedType == key)
         {
-            return std::make_shared<AttributeWrapper>(type, std::move(value), length, quality);
+            auto wrapper = std::make_shared<AttributeWrapper>(type, length, quality);
+            ReturnValueOnFailure(wrapper->Write(std::move(value)), nullptr);
+            return wrapper;
         }
     }
     return nullptr; // Default factory logic

@@ -151,7 +151,7 @@ CHIP_ERROR fuzz::ContextManager::OnInvokeResponse(CHIP_ERROR status, std::shared
     {
         types::FuzzerObservation observation = { mContext->commandString, cmdPath, mContext->commandStatusResponse,
                                                  mContext->invokeResponseData, mContext->reportedData };
-        fuzz::Fuzzer::GetInstance()->GetStatsMonitor()->AddObservation(std::move(mContext->currentDeviceState), observation);
+        LogErrorOnFailure(fuzz::Fuzzer::GetInstance()->GetStatsMonitor()->AddObservation(std::move(mContext->currentDeviceState), observation));
     }
 
     ChipLogProgress(chipToolFuzzing, "Moving fuzzer context state to INVOKE_RESPONSE.");
@@ -261,7 +261,7 @@ CHIP_ERROR fuzz::ContextManager::WaitForSubscriptionReport(std::vector<types::At
             types::FuzzerObservation observation = { mContext->commandString, mContext->commandPath.Value(),
                                                      mContext->commandStatusResponse, mContext->invokeResponseData,
                                                      mContext->reportedData };
-            fuzzer->GetStatsMonitor()->AddObservation(std::move(mContext->currentDeviceState), observation);
+            LogErrorOnFailure(fuzzer->GetStatsMonitor()->AddObservation(std::move(mContext->currentDeviceState), observation));
         }
     }
 

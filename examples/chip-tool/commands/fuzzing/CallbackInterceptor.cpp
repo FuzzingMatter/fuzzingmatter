@@ -14,7 +14,7 @@ std::shared_ptr<types::AnyType> fuzz::CallbackInterceptor::ExtractCommandRespons
         std::shared_ptr<TLV::DecodedTLVElement> output = TLV::DecodedTLVElement::Create(TLV::TLVType::kTLVType_Structure);
         VerifyOrDieWithSave(output != nullptr);
         output->content = ContainerType();
-        helper.Decode(output);
+        ReturnValueOnFailure(helper.Decode(output), nullptr);
         return std::make_shared<types::AnyType>(std::get<ContainerType>(output->content)[0]->content);
     }
     return nullptr;
@@ -31,7 +31,7 @@ std::shared_ptr<types::AnyType> fuzz::CallbackInterceptor::ExtractReportData(chi
         std::shared_ptr<TLV::DecodedTLVElement> output = TLV::DecodedTLVElement::Create(TLV::TLVType::kTLVType_Structure);
         VerifyOrDieWithSave(output != nullptr);
         output->content = ContainerType();
-        helper.Decode(output);
+        ReturnValueOnFailure(helper.Decode(output), nullptr);
 
         if (path.mClusterId == chip::app::Clusters::Descriptor::Id)
         {
@@ -57,7 +57,7 @@ std::shared_ptr<types::AnyType> fuzz::CallbackInterceptor::ExtractReportData(chi
         {
             auto & attributeState = fuzzer->GetDeviceStateTracker()->GetAttributeState(
                 fuzzer->CurrentDestination(), path.mEndpointId, path.mClusterId, path.mAttributeId);
-            helper.WriteToDeviceState(output, attributeState);
+            LogErrorOnFailure(helper.WriteToDeviceState(output, attributeState));
         }
         return std::make_shared<types::AnyType>(std::get<ContainerType>(output->content)[0]->content);
     }
@@ -73,7 +73,7 @@ std::shared_ptr<types::AnyType> fuzz::CallbackInterceptor::ExtractReportData(con
         std::shared_ptr<TLV::DecodedTLVElement> output = TLV::DecodedTLVElement::Create(TLV::TLVType::kTLVType_Structure);
         VerifyOrDieWithSave(output != nullptr);
         output->content = ContainerType();
-        helper.Decode(output);
+        ReturnValueOnFailure(helper.Decode(output), nullptr);
         return std::make_shared<types::AnyType>(std::get<ContainerType>(output->content)[0]->content);
     }
     return nullptr;

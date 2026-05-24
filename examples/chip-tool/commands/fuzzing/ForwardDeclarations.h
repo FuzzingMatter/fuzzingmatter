@@ -68,7 +68,7 @@ template <typename T, typename... Args>
 struct ExtendedVariant;
 
 struct MapKeyHasher;
-struct MapKeyEqualizer;
+class MapKeyEqualizer;
 struct SetKeyHasher;
 
 struct ExecutionStats;

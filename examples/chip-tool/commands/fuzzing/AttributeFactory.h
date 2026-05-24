@@ -35,23 +35,6 @@ struct AttributeWrapper
             break;
         }
     }
-    AttributeWrapper(TLV::TLVType aType, types::AnyType && aValue, uint8_t bytes = 0,
-                     AttributeQualityEnum aQuality = AttributeQualityEnum::kMandatory) :
-        type(aType), quality(aQuality), length(bytes)
-    {
-        switch (quality)
-        {
-        case AttributeQualityEnum::kMandatory:
-            value = types::AnyType{};
-            break;
-        case AttributeQualityEnum::kOptional:
-            value = chip::Optional<types::AnyType>::Missing();
-            break;
-        default:
-            return;
-        }
-        Write(std::move(aValue));
-    }
     TLV::TLVType type;
     AttributeQualityEnum quality;
     uint8_t length;

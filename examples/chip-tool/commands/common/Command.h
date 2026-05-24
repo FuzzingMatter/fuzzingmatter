@@ -234,10 +234,9 @@ public:
         return AddArgument(name, min, max, reinterpret_cast<T *>(value), desc, Argument::kOptional);
     }
 
-    template <typename T>
-    size_t AddArgument(const char * name, T min, T max, chip::Optional<T> * value, const char * desc = "")
+    size_t AddArgument(const char * name, double min, double max, chip::Optional<double> * value, const char * desc = "")
     {
-        return AddArgument(name, min, max, reinterpret_cast<T *>(value), desc, Argument::kOptional);
+        return AddArgument(name, min, max, reinterpret_cast<double *>(value), desc, Argument::kOptional);
     }
 
     template <typename T>

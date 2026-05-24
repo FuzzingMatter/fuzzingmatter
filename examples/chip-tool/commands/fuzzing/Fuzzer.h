@@ -6,12 +6,13 @@
 #include "OutputLogger.h"
 #include "StatsMonitor.h"
 #include "Tuner.h"
+#include <nlassert.h>
 
 namespace chip {
 namespace fuzzing {
 
 #define VerifyOrDieWithSave(aCondition)                                                                                            \
-    nlABORT_ACTION(aCondition, ::chip::fuzzing::Fuzzer::GetInstance()->GetStatsMonitor()->SaveData())
+    nlABORT_ACTION(aCondition, LogErrorOnFailure(::chip::fuzzing::Fuzzer::GetInstance()->GetStatsMonitor()->SaveData()))
 
 enum class FuzzerPhase : uint8_t
 {

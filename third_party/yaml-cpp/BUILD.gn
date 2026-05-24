@@ -16,7 +16,7 @@ import("//build_overrides/build.gni")
 import("//build_overrides/chip.gni")
 
 config("yaml-cpp_config") {
-  include_dirs = [ "repo/include" ]
+  cflags = [ "-isystem" + rebase_path("repo/include", root_build_dir) ]
 }
 
 config("yaml-cpp_config_disable_warnings") {

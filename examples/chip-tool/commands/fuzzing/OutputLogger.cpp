@@ -245,23 +245,23 @@ fuzz::OutputLogger::LogStatistics(
     YAML::Emitter emitter;
     emitter << YAML::BeginMap;
     emitter << YAML::Key << "issued" << YAML::Value
-            << std::accumulate(testcasesPerCommand->begin(), testcasesPerCommand->end(), 0,
+            << std::accumulate(testcasesPerCommand->begin(), testcasesPerCommand->end(), uint64_t{ 0 },
                                [](uint64_t acc, auto & el) { return acc + el.second; });
     emitter << YAML::Key << "succeeded" << YAML::Value
-            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), 0, [](uint64_t acc, auto & pair) {
-                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), 0, [](uint64_t errorAcc, auto & errorPair) {
+            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), uint64_t{ 0 }, [](uint64_t acc, auto & pair) {
+                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), uint64_t{ 0 }, [](uint64_t errorAcc, auto & errorPair) {
                               return errorPair.first == CHIP_NO_ERROR ? errorAcc + errorPair.second : errorAcc;
                           });
                });
     emitter << YAML::Key << "failed" << YAML::Value
-            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), 0, [](uint64_t acc, auto & pair) {
-                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), 0, [](uint64_t errorAcc, auto & errorPair) {
+            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), uint64_t{ 0 }, [](uint64_t acc, auto & pair) {
+                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), uint64_t{ 0 }, [](uint64_t errorAcc, auto & errorPair) {
                               return errorPair.first != CHIP_NO_ERROR ? errorAcc + errorPair.second : errorAcc;
                           });
                });
     emitter << YAML::Key << "timeouts" << YAML::Value
-            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), 0, [](uint64_t acc, auto & pair) {
-                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), 0, [](uint64_t errorAcc, auto & errorPair) {
+            << std::accumulate(errorMapPerCommand->begin(), errorMapPerCommand->end(), uint64_t{ 0 }, [](uint64_t acc, auto & pair) {
+                   return acc + std::accumulate(pair.second.begin(), pair.second.end(), uint64_t{ 0 }, [](uint64_t errorAcc, auto & errorPair) {
                               return errorPair.first == CHIP_ERROR_TIMEOUT ? errorAcc + errorPair.second : errorAcc;
                           });
                });
@@ -354,7 +354,7 @@ fuzz::OutputLogger::LogStatistics(
     emitter << YAML::EndSeq;
 
     emitter << YAML::Key << "averageExecutionTime" << YAML::Value
-            << std::to_string(totalExecutionTime.count() / commandExecutionStats->size()) + "μs";
+            << std::to_string(totalExecutionTime.count() / static_cast<decltype(totalExecutionTime)::rep>(commandExecutionStats->size())) + "μs";
     emitter << YAML::Key << "averageCommandsPerSecond" << YAML::Value
             << std::to_string(static_cast<double>(commandExecutionStats->size()) /
                               std::chrono::duration_cast<std::chrono::duration<double>>(totalExecutionTime).count());
